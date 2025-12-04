@@ -1,6 +1,6 @@
 ---
-- name: "Package: Install cloudstack-management"
-  ansible.builtin.package:
+- name: "APT: Install cloudstack-management"
+  ansible.builtin.apt:
     pkg:
       - "cloudstack-management"
       - "cloudstack-usage"
@@ -8,6 +8,18 @@
       - "nginx"
     state: latest
   notify: cloudstack_mgmt_restart
+  when: ansible_os_family == "Debian"
+
+- name: "YUM: Install cloudstack-management"
+  ansible.builtin.package:
+    pkg:
+      - "cloudstack-management"
+      - "cloudstack-usage"
+      - "netcat"
+      - "nginx"
+    state: latest
+  notify: cloudstack_mgmt_restart
+  when: ansible_os_family == "Redhat" or ansible_os_family == "Rocky"
 
 - name: "Package: Install cloudflare certbot provider"
   ansible.builtin.package:
