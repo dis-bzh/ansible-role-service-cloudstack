@@ -34,15 +34,9 @@
 - name: "Determine IPs that might be used to connect to DB"
   set_fact:
     cloudstack_db_src_ips: >-
-      {%- set iplist = [ ] %}
-      {%- for subnet in mariadb_cluster_vips %}
-      {%-   for addr in ansible_facts['all_ipv4_addresses'] + ansible_facts['all_ipv6_addresses'] %}
-      {%-     if addr | ansible.utils.ipaddr(subnet) is not none %}
-      {%-       do iplist.append(addr) %}
-      {%-     endif %}
-      {%-   endfor %}
-      {%- endfor %}
-      {{- iplist -}}
+      {{ (ansible_facts['all_ipv4_addresses'] + ansible_facts['all_ipv6_addresses'])
+         | select('ansible.utils.ipaddr', mariadb_cluster_vips)
+         | list }}
 
 - name: "Determine management subnet"
   set_fact:
@@ -61,21 +55,21 @@
 - name: "Determine management server ips"
   set_fact:
     cloudstack_management_ips: >-
-      {%- set iplist = [ ] %}
-      {%- for host in groups["cloudstack_mgmt"] %}
-      {%-   for iface in hostvars[host]['ansible_interfaces'] | default([]) %}
-      {%-     set iface_key = 'ansible_' ~ iface %}
-      {%-     if hostvars[host][iface_key] is not defined %}
-      {%-       set iface_key = iface %}
-      {%-     endif %}
-      {%-     if hostvars[host][iface_key]["ipv4"]["address"] is defined %}
-      {%-       if hostvars[host][iface_key]["ipv4"]["address"] | ansible.utils.ipaddr(cloudstack_management_subnet) is not none %}
-      {%-         do iplist.append(hostvars[host][iface_key]["ipv4"]["address"]) %}
-      {%-       endif %}
-      {%-     endif %}
-      {%-   endfor %}
-      {%- endfor %}
-      {{- iplist -}}
+      {%- set iplist = [] -%}
+      {%- for host in groups["cloudstack_mgmt"] -%}
+      {%-   for iface in hostvars[host]['ansible_interfaces'] | default([]) -%}
+      {%-     set iface_key = 'ansible_' ~ iface -%}
+      {%-     if hostvars[host][iface_key] is not defined -%}
+      {%-       set iface_key = iface -%}
+      {%-     endif -%}
+      {%-     if hostvars[host][iface_key]["ipv4"]["address"] is defined -%}
+      {%-       if hostvars[host][iface_key]["ipv4"]["address"] | ansible.utils.ipaddr(cloudstack_management_subnet) is not none -%}
+      {%-         set _ = iplist.append(hostvars[host][iface_key]["ipv4"]["address"]) -%}
+      {%-       endif -%}
+      {%-     endif -%}
+      {%-   endfor -%}
+      {%- endfor -%}
+      {{ iplist }}
 
 - name: Create database for cloudstack
   community.mysql.mysql_db:
