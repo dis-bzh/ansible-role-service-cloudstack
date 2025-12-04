@@ -34,9 +34,13 @@
 - name: "Determine IPs that might be used to connect to DB"
   set_fact:
     cloudstack_db_src_ips: >-
-      {{ (ansible_facts['all_ipv4_addresses'] + ansible_facts['all_ipv6_addresses'])
-         | select('ansible.utils.ipaddr', mariadb_cluster_vips)
-         | list }}
+      {%- set iplist = [] -%}
+      {%- set all_ips = ansible_facts['all_ipv4_addresses'] + ansible_facts['all_ipv6_addresses'] -%}
+      {%- for subnet in mariadb_cluster_vips | default([]) -%}
+      {%-   set matched_ips = all_ips | map('ansible.utils.ipaddr', subnet) | select('string') | list -%}
+      {%-   set _ = iplist.extend(matched_ips) -%}
+      {%- endfor -%}
+      {{ iplist | unique }}
 
 - name: "Determine management subnet"
   set_fact:
