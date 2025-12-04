@@ -31,7 +31,7 @@
 - name: "YUM: Install cloudstack repository"
   template:
     src: cloudstack.sources.el.j2
-    dest: /etc/yum/yum.repos.d/cloudstack.sources
+    dest: /etc/yum.repos.d/cloudstack.repo
     owner: root
     mode: "644"
   register: repo
