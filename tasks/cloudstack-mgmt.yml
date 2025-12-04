@@ -1,6 +1,6 @@
 ---
-- name: "APT: Install cloudstack-management"
-  ansible.builtin.apt:
+- name: "Package: Install cloudstack-management"
+  ansible.builtin.package:
     pkg:
       - "cloudstack-management"
       - "cloudstack-usage"
@@ -8,6 +8,12 @@
       - "nginx"
     state: latest
   notify: cloudstack_mgmt_restart
+
+- name: "Package: Install cloudflare certbot provider"
+  ansible.builtin.package:
+    pkg:
+      - "python3-certbot-dns-cloudflare"
+  when: cloudstack_dns_provider == "cloudflare"
 
 - name: "Determine mariadb unix socket path"
   set_fact:

@@ -1,7 +1,7 @@
 ---
 
-- name: "LDAPSYNC: APT: Install components for sync script"
-  ansible.builtin.apt:
+- name: "LDAPSYNC: Package: Install components for sync script"
+  ansible.builtin.package:
     pkg:
       - "python3-ldap3"
       - "python3-cs"

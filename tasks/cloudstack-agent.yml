@@ -1,6 +1,6 @@
 ---
-- name: "APT: Install cloudstack-agent"
-  ansible.builtin.apt:
+- name: "Package: Install cloudstack-agent"
+  ansible.builtin.package:
     pkg:
       - "cloudstack-agent"
       - "ovmf"
