@@ -1,31 +1,44 @@
 ---
-- name: "APT: see if we have a keyring"
-  stat:
-    path: /etc/apt/trusted.gpg.d/cloudstack.asc
-  register: keyring_exists
+- name: "APT: Install cloudstack repository for Debiazn-based systems"
+  when: ansible_os_family == "Debian"
+  run_once: true
+  block:
+  - name: "APT: see if we have a keyring"
+    stat:
+      path: /etc/apt/trusted.gpg.d/cloudstack.asc
+    register: keyring_exists
 
-- name: "APT: fetch keyring"
-  ansible.builtin.get_url:
-    url: https://download.cloudstack.org/release.asc
-    dest: /etc/apt/trusted.gpg.d/cloudstack.asc
-    mode: "644"
-  when: not keyring_exists.stat.exists
-  register: keyring
+  - name: "APT: fetch keyring"
+    ansible.builtin.get_url:
+      url: https://download.cloudstack.org/release.asc
+      dest: /etc/apt/trusted.gpg.d/cloudstack.asc
+      mode: "644"
+    when: not keyring_exists.stat.exists
+    register: keyring
 
-- name: "APT: Import Key"
-  shell: "apt-key add /etc/apt/trusted.gpg.d/cloudstack.asc"
-  when: keyring.changed
+  - name: "APT: Import Key"
+    shell: "apt-key add /etc/apt/trusted.gpg.d/cloudstack.asc"
+    when: keyring.changed
 
-- name: "APT: Install cloudstack repository"
+  - name: "APT: Install cloudstack repository"
+    template:
+      src: cloudstack.sources.debian.j2
+      dest: /etc/apt/sources.list.d/cloudstack.sources
+      owner: root
+      mode: "644"
+    register: repo
+
+- name: "YUM: Install cloudstack repository"
   template:
-    src: cloudstack.sources.j2
-    dest: /etc/apt/sources.list.d/cloudstack.sources
+    src: cloudstack.sources.el.j2
+    dest: /etc/yum/yum.repos.d/cloudstack.sources
     owner: root
     mode: "644"
   register: repo
+  when: ansible_os_family == "RedHat" or ansible_os_family == "Rocky"
 
-- name: "APT: Update cache"
-  ansible.builtin.apt:
+- name: "Package: Update cache"
+  ansible.builtin.package:
     update_cache: true
   when: repo.changed
 
