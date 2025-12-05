@@ -85,6 +85,7 @@
     encoding: utf8mb4
     collation: utf8mb4_unicode_ci
     state: present
+  become: true
   run_once: true
 
 - name: Create database for cloudstack usage
@@ -97,6 +98,7 @@
     encoding: utf8mb4
     collation: utf8mb4_unicode_ci
     state: present
+  become: true
   run_once: true
 
 - name: Create db user (localhost) for cloudstack
@@ -114,6 +116,7 @@
       'cloud_usage.*': 'ALL,GRANT'
       '*.*': 'PROCESS'
     host: "{{ item }}"
+  become: true
   with_items:
     - "localhost"
     - "127.0.0.1"
@@ -135,6 +138,7 @@
       'cloud_usage.*': 'ALL,GRANT'
       '*.*': 'PROCESS'
     host: "{{ item }}"
+  become: true
   with_items: "{{ cloudstack_db_src_ips }}"
   throttle: 1
 
