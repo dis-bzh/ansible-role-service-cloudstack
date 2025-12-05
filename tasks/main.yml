@@ -35,7 +35,7 @@
     owner: root
     mode: "644"
   register: repo
-  when: ansible_os_family == "RedHat" or ansible_os_family == "Rocky"
+  when: ansible_os_family == "RedHat"
 
 - name: "Package: Update cache"
   ansible.builtin.package:
