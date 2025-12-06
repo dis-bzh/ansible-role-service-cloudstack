@@ -185,14 +185,20 @@
     cloudstack_bootstrap_node: "{{ groups['cloudstack_mgmt'] | intersect(ansible_play_hosts) | sort | first }}"
   when: cloudstack_db_info.databases["cloud"].tables == 0
 
+- name: Debug message
+  debug:
+    msg: "is using local"
+
 - name: Setup cloudstack database on bootstrap node
   shell: "cloudstack-setup-databases '{{ cloudstack_db_user }}:{{ cloudstack_db_password }}@{{ mariadb_cluster_vips[0].split('/')[0] }}' {{ '--schema-only --force-recreate' if cloudstack_db_info.databases['cloud'].tables == 0 else '' }} --mshost={{ ansible_facts[cloudstack_mgmt_interface]['ipv4']['address'] }} --encrypt-type=file --managementserver-secretkey='{{ cloudstack_mgmt_key }}' --database-secretkey='{{ cloudstack_db_key }}'"
   when: inventory_hostname == cloudstack_bootstrap_node|default("")
   run_once: true
+  become: true
 
 - name: Generate local configuration on secondary nodes
   shell: "cloudstack-setup-databases '{{ cloudstack_db_user }}:{{ cloudstack_db_password }}@{{ mariadb_cluster_vips[0].split('/')[0] }}' --mshost={{ ansible_facts[cloudstack_mgmt_interface]['ipv4']['address'] }} --encrypt-type=file --managementserver-secretkey='{{ cloudstack_mgmt_key }}' --database-secretkey='{{ cloudstack_db_key }}'"
   when: (cloudstack_db_info.databases["cloud"].tables == 0 or db_config.changed or not db_file.stat.exists) and inventory_hostname != cloudstack_bootstrap_node|default("")
+  become: true
 
 - name: "UFW: Enable Cloudstack Management Ports"
   community.general.ufw:
@@ -202,6 +208,7 @@
   with_items:
     - 8250
     - 9090
+  when: ansible_os_family == "Debian"
 
 - name: Update keepalive database parameters
   lineinfile:
@@ -280,11 +287,12 @@
     path: "/etc/nginx/sites-enabled/default"
     state: absent
   notify: nginx_restart
+  when: ansible_os_family == "Debian"
 
 - name: "Install nginx configuration"
   template:
     src: nginx-cloudstack.j2
-    dest: /etc/nginx/sites-available/cloudstack
+    dest: "{{ '/etc/nginx/sites-available/cloudstack' if ansible_os_family == 'Debian' else '/etc/nginx/conf.d/cloudstack.conf' }}"
     owner: root
     mode: "644"
   notify: nginx_restart
@@ -296,6 +304,7 @@
     state: link
     owner: root
   notify: nginx_restart
+  when: ansible_os_family == "Debian"
 
 - name: "UFW: Enable Nginx Ports"
   community.general.ufw:
@@ -306,3 +315,19 @@
     - 80
     - 8080
     - 443
+  when: ansible_os_family == "Debian"
+
+- name: "Firewalld: Enable Cloudstack Management Ports"
+  firewalld:
+    port: "{{ item }}/tcp"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  with_items:
+    - 80
+    - 443
+    - 8080
+    - 8250
+    - 9090
+  when: ansible_os_family == "RedHat"
+

@@ -8,6 +8,14 @@
     state: latest
   notify: cloudstack_agent_restart
 
+- name: "System: Disable Firewalld (KVM requires iptables management by CloudStack)"
+  service:
+    name: firewalld
+    state: stopped
+    enabled: no
+  when: ansible_os_family == "RedHat"
+
+
 - name: Create the cloudstack user
   user:
     name: "cloudstack"
@@ -185,6 +193,7 @@
     line: 'IPT_MODULES="bridge"'
     regexp: "^IPT_MODULES"
   notify: ufw_restart
+  when: ansible_os_family == "Debian"
 
 - name: "UFW: Don't apply rules on bridge traffic"
   lineinfile:
@@ -196,6 +205,7 @@
     - { key: net.bridge.bridge-nf-call-iptables, val: 0 }
     - { key: net.bridge.bridge-nf-call-arptables, val: 0 }
   notify: ufw_restart
+  when: ansible_os_family == "Debian"
 
 - name: "UFW: Enable Cloudstack Agent Ports"
   community.general.ufw:
@@ -207,6 +217,7 @@
     - "16514" #libvirt
     - "5900:6100" #VNC consoles)
     - "49152:49216" #libvirt live migration
+  when: ansible_os_family == "Debian"
 
 - name: "KSM: more aggressive settings"
   copy:
