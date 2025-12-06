@@ -185,10 +185,6 @@
     cloudstack_bootstrap_node: "{{ groups['cloudstack_mgmt'] | intersect(ansible_play_hosts) | sort | first }}"
   when: cloudstack_db_info.databases["cloud"].tables == 0
 
-- name: Debug message
-  debug:
-    msg: "is using local"
-
 - name: Setup cloudstack database on bootstrap node
   shell: "cloudstack-setup-databases '{{ cloudstack_db_user }}:{{ cloudstack_db_password }}@{{ mariadb_cluster_vips[0].split('/')[0] }}' {{ '--schema-only --force-recreate' if cloudstack_db_info.databases['cloud'].tables == 0 else '' }} --mshost={{ ansible_facts[cloudstack_mgmt_interface]['ipv4']['address'] }} --encrypt-type=file --managementserver-secretkey='{{ cloudstack_mgmt_key }}' --database-secretkey='{{ cloudstack_db_key }}'"
   when: inventory_hostname == cloudstack_bootstrap_node|default("")
