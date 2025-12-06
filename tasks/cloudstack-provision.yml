@@ -1,0 +1,143 @@
+---
+- name: "Provision: Retrieve API Keys from CloudMonkey config if not present"
+  shell: "grep ^apikey /root/.cmk/config | sed -E 's/.*=(.*)/\\1/' | sed -E 's/ //g'"
+  register: cmk_apikey_read
+  changed_when: false
+  when: cmk_api_key is not defined
+
+- name: "Provision: Retrieve Secret Key from CloudMonkey config if not present"
+  shell: "grep ^secretkey /root/.cmk/config | sed -E 's/.*=(.*)/\\1/' | sed -E 's/ //g'"
+  register: cmk_secretkey_read
+  changed_when: false
+  when: cmk_api_key is not defined
+
+- name: "Provision: Set API Key facts"
+  set_fact:
+    cs_api_key: "{{ cmk_api_key.userkeys.apikey if cmk_api_key is defined else cmk_apikey_read.stdout }}"
+    cs_secret_key: "{{ cmk_api_key.userkeys.secretkey if cmk_api_key is defined else cmk_secretkey_read.stdout }}"
+    cs_api_url: "http://localhost:8123/client/api"
+
+- name: "Provision: CloudStack Infrastructure Block"
+  module_defaults:
+    group/ngine_io.cloudstack.cloudstack:
+      api_key: "{{ cs_api_key }}"
+      api_secret: "{{ cs_secret_key }}"
+      api_url: "{{ cs_api_url }}"
+  block:
+    - name: "Provision: Create Zones"
+      ngine_io.cloudstack.cs_zone:
+        name: "{{ item.name }}"
+        dns1: "{{ item.public_dns[0] | default(omit) }}"
+        dns2: "{{ item.public_dns[1] | default(omit) }}"
+        internal_dns1: "{{ item.internal_dns[0] | default(omit) }}"
+        internal_dns2: "{{ item.internal_dns[1] | default(omit) }}"
+        dns1_ipv6: "{{ item.public_dns_ipv6[0] | default(omit) }}"
+        dns2_ipv6: "{{ item.public_dns_ipv6[1] | default(omit) }}"
+        network_domain: "{{ item.domain | default(omit) }}"
+        state: present
+      loop: "{{ cloudstack_zones | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "Provision: Create Physical Networks"
+      ngine_io.cloudstack.cs_physical_network:
+        zone: "{{ item.0.name }}"
+        name: "{{ item.1.name }}"
+        isolation_methods: "{{ item.1.isolation | default(['VLAN']) }}"
+        vlan: "{{ item.1.vni | default(omit) }}"
+        state: present
+      loop: "{{ cloudstack_zones | subelements('networks') }}"
+      loop_control:
+        label: "{{ item.0.name }} - {{ item.1.name }}"
+
+    - name: "Provision: Configure Traffic Types"
+      ngine_io.cloudstack.cs_traffic_type:
+        zone: "{{ item.0.name }}"
+        physical_network: "{{ item.1.name }}"
+        traffic_type: "{{ item.1.usage | capitalize }}"
+        kvm_network_label: "{{ item.1.bridge }}"
+        state: present
+      loop: "{{ cloudstack_zones | subelements('networks') }}"
+      loop_control:
+        label: "{{ item.0.name }} - {{ item.1.name }} ({{ item.1.usage }})"
+
+    - name: "Provision: Create Pods"
+      ngine_io.cloudstack.cs_pod:
+        zone: "{{ item.0.name }}"
+        name: "{{ item.1.name }}"
+        gateway: "{{ item.1.gateway }}"
+        netmask: "{{ item.1.netmask | default(item.1.gateway | ipaddr('netmask')) }}"
+        start_ip: "{{ item.1.start_ip }}"
+        end_ip: "{{ item.1.end_ip }}"
+        state: present
+      loop: "{{ cloudstack_zones | subelements('pods') }}"
+      loop_control:
+        label: "{{ item.0.name }} - {{ item.1.name }}"
+
+    - name: "Provision: Create Clusters"
+      ngine_io.cloudstack.cs_cluster:
+        zone: "{{ item.0.name }}"
+        pod: "{{ item.1.name }}"
+        name: "{{ item.2.name }}"
+        cluster_type: CloudManaged
+        hypervisor: KVM
+        state: present
+      loop: "{{ cloudstack_zones | subelements('pods') | subelements('clusters') }}"
+      loop_control:
+        label: "{{ item.0.name }} - {{ item.1.name }} - {{ item.2.name }}"
+
+    - name: "Provision: Add Hosts to Clusters"
+      ngine_io.cloudstack.cs_host:
+        zone: "{{ item.0.name }}"
+        pod: "{{ item.1.name }}"
+        cluster: "{{ item.2.name }}"
+        name: "{{ item.3 }}" 
+        url: "http://{{ hostvars[item.3]['ansible_default_ipv4']['address'] }}" 
+        hypervisor: KVM
+        host_tags: "{{ item.2.tags | default([]) }}"
+        state: present
+      when: hostvars[item.3]['cloudstack_cluster'] is defined and hostvars[item.3]['cloudstack_cluster'] == item.2.name
+      loop: "{{ cloudstack_zones | subelements('pods') | subelements('clusters') | product(groups['cloudstack_kvm']) | list }}"
+      ignore_errors: true 
+
+    - name: "Provision: Create Public IP Ranges"
+      ngine_io.cloudstack.cs_vlan_ip_range:
+        zone: "{{ item.0.name }}"
+        network: "{{ item.1.name }}"
+        start_ip: "{{ item.2.start_ip | default(omit) }}"
+        end_ip: "{{ item.2.end_ip | default(omit) }}"
+        gateway: "{{ item.2.gateway | default(omit) }}"
+        netmask: "{{ item.2.netmask | default(omit) }}"
+        vlan: "{{ item.2.vlan | default(omit) }}"
+        for_system_vms: "{{ item.2.for_system_vms | default(false) }}"
+        state: present
+      loop: "{{ cloudstack_zones | subelements('networks') | subelements('ip_ranges', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.1.name }} - {{ item.2.start_ip|default('N/A') }}"
+
+    - name: "Provision: Create Primary Storage Support"
+      ngine_io.cloudstack.cs_storage_pool:
+        zone: "{{ item.0.name }}"
+        pod: "{{ item.1.name }}"
+        cluster: "{{ item.2.name }}"
+        name: "{{ item.3.name }}"
+        url: "{{ item.3.url }}"
+        scope: "{{ item.3.scope | default('cluster') }}"
+        provider: "{{ item.3.provider | default('NetworkFilesystem') }}"
+        tags: "{{ item.3.tags | default([]) }}"
+        state: present
+      loop: "{{ cloudstack_zones | subelements('pods') | subelements('clusters') | subelements('primary_storage', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.3.name }}"
+    
+    - name: "Provision: Create Secondary Storage"
+      ngine_io.cloudstack.cs_image_store:
+        zone: "{{ item.name }}"
+        name: "{{ item.secondary_storage.name }}"
+        provider: "{{ item.secondary_storage.provider | default('NFS') }}"
+        url: "{{ item.secondary_storage.url }}"
+        state: present
+      loop: "{{ cloudstack_zones }}"
+      when: item.secondary_storage is defined
+      loop_control:
+        label: "{{ item.secondary_storage.name }}"

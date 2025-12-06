@@ -1,0 +1,6 @@
+---
+- name: "Prereq: Install cs python library"
+  ansible.builtin.pip:
+    name: cs
+    state: present
+  become: true

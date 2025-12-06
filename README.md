@@ -178,41 +178,40 @@ database is always `cloud_usage`.  There is no ability to change these.
   will create a single zone per Datacenter.
   - `name`: Required. Name of the zone.  Recommended to keep it short but
     identifiable.  E.g. `us-east-1`
-  - `public_dns`: List of IPv4 DNS servers used for resolving DNS names for
-    user-created Instances/VMs. At least one server is required, maximum 2.
-  - `internal_dns`: List of IPv4 DNS servers used by SystemVMs to resolve names
-    of internal services. At least one server is required, maximum 2. May be the
-    same as public DNS.  The current deployment scripts are using IP addresses
-    and not names.
-  - `domain`. Optional. Network domain name for the networks in the zone.
-  - `subnet`. Optional. Default subnet with mask for any private networks
-    created. They can overlap from network to network. E.g. `10.1.1.0/24`.
-  - `networks`: List of physical networks defined in this zone.  Must have at
-    least 3 networks, one of each `management`, `public`, and `guest`.
+  - `public_dns`: List of IPv4 DNS servers.
+  - `public_dns_ipv6`: List of IPv6 DNS servers.
+  - `internal_dns`: List of IPv4 DNS servers used by SystemVMs.
+  - `internal_dns_ipv6`: List of IPv6 DNS servers used by SystemVMs.
+  - `domain`. Optional. Network domain name.
+  - `secondary_storage`: Required. Dictionary for Secondary Storage.
+    - `name`: Name of store.
+    - `provider`: `NFS` (default) or `S3`.
+    - `url`: URL for storage (e.g. `nfs://192.168.1.5/secondary`).
+  - `networks`: List of physical networks.
     - `name`: Required. Name of the network.
-    - `usage`: Required. Values: `management`, `public`, or `guest`.
+    - `usage`: Required. Values: `management`, `public`, `guest`, `storage`.
     - `isolation`: Required. Values: `VLAN` or `VXLAN`.
-    - `subnet`: Required. e.g. `192.168.1.0/24`
-    - `bridge`: Required. Name of bridge interface on host to associate with
-      this network.
-    - `vni`: Optional. If untagged, leave blank.  Otherwise is the VLAN or
-      VXLAN vni.
-  - `pods`: Required. List of PODs.  PODs are an organizational unit that are
-    not directly visible to end users.  Often a pod represents a rack or row
-    and typically all hosts in the POD will share the same subnet.  It is
-    acceptable to have only one POD in a zone.
+    - `bridge`: Required. Name of bridge interface (e.g. `cloudbr0`).
+    - `vni`: Optional.
+    - `ip_ranges`: List of Public IP ranges (for Public network).
+      - `start_ip`: Start IPv4.
+      - `end_ip`: End IPv4.
+      - `gateway`: Gateway IPv4.
+      - `netmask`: Netmask IPv4.
+      - `vlan`: VLAN ID (optional).
+  - `pods`: Required. List of PODs.
     - `name`: Required. Name of POD.
-    - `gateway`: Required. Gateway address with subnet on the Management network
-      for any System VMs (Console, Secondary Storage, Virtual Router) created.
-      ***NOTE:*** It appears this gateway is only used for remote access to the
-      SystemVMs and doesn't seem to be used.
-    - `start_ip`: Required. Starting IP address for any SystemVMs created in
-      this pod. Must be in the same subnet as the gateway.
-    - `end_ip`: Required. Ending IP address for any SystemVMs created in
-      this pod. Must be in the same subnet as the gateway.
-    - `clusters`: Required. List of clusters.  A cluster is a grouping of hosts
-      within a POD. The hosts must be identical (CPU, Memory).
+    - `gateway`: Required. Gateway address.
+    - `netmask`: Required.
+    - `start_ip`: Required. Starting IP for SystemVMs.
+    - `end_ip`: Required. Ending IP for SystemVMs.
+    - `clusters`: Required. List of clusters.
       - `name`: Required. Cluster name.
+      - `primary_storage`: List of primary storage pools.
+        - `name`: Storage name.
+        - `url`: Storage URL (e.g. `nfs://192.168.1.5/primary`).
+        - `scope`: `cluster` or `zone`.
+        - `provider`: `NetworkFilesystem` (default) or `SharedMountPoint`.
 
 ## SAML / External IDP Authentication
 

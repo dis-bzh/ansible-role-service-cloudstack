@@ -63,3 +63,12 @@
 - name: Sync users/projects from LDAP
   import_tasks: "cloudstack-ldapsync.yml"
   when: inventory_hostname in groups["cloudstack_mgmt"] and cloudstack_saml_enable
+
+- name: Install Prerequisites
+  import_tasks: "prereqs.yml"
+  when: inventory_hostname in groups["cloudstack_mgmt"]
+
+- name: Provision CloudStack
+  import_tasks: "cloudstack-provision.yml"
+  when: inventory_hostname in groups["cloudstack_mgmt"]
+  run_once: true
