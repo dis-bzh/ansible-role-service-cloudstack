@@ -230,7 +230,9 @@ données d'usage est toujours `cloud_usage`. Il n'est pas possible de les modifi
       au sein d'un POD. Les hôtes doivent être identiques (CPU, Mémoire).
       - `name` : Requis. Nom du cluster.
   - `primary_storage` : Optionnel. Pool de stockage primaire NFS, créé avec
-    `scope=cluster` pour chaque cluster de la zone. Si absent, les hôtes/clusters
+    `scope=cluster` pour chaque cluster de la zone, une fois que le premier
+    hôte KVM de ce cluster s'enregistre (CloudStack refuse de créer un pool
+    de stockage dans un cluster sans hôte). Si absent, les hôtes/clusters
     sont tout de même créés mais n'ont pas de stockage primaire utilisable tant
     qu'un n'est pas ajouté manuellement.
     - `name` : Requis. Nom du pool de stockage.

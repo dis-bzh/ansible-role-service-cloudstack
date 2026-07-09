@@ -228,9 +228,10 @@ database is always `cloud_usage`.  There is no ability to change these.
       within a POD. The hosts must be identical (CPU, Memory).
       - `name`: Required. Cluster name.
   - `primary_storage`: Optional. NFS-backed primary storage pool, created with
-    `scope=cluster` for each cluster in the zone. If omitted, hosts/clusters
-    are still created but have no usable primary storage until one is added
-    manually.
+    `scope=cluster` for each cluster in the zone, once the first KVM host in
+    that cluster registers (CloudStack refuses to create a storage pool in a
+    cluster with no host yet). If omitted, hosts/clusters are still created
+    but have no usable primary storage until one is added manually.
     - `name`: Required. Name of the storage pool.
     - `nfs_path`: Required. NFS export path, e.g. `10.1.1.5:/export/primary`.
   - `secondary_storage`: Optional. NFS-backed secondary storage (image store)
