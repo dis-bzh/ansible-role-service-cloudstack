@@ -45,11 +45,13 @@ database is always `cloud_usage`.  There is no ability to change these.
 
 ### Variables used only by KVM hypervisor nodes
 
-***Not implemented yet***
-
-- `cloudstack_zone`: Zone to provision host under.
-- `cloudstack_pod`: Pod to provision host under.
-- `cloudstack_cluster`: Cluster to provision host under.
+- `cloudstack_zone`: Optional. Name of the zone (from `cloudstack_zones` below)
+  to register this host under. If unset, the host is not registered with
+  CloudStack (only installed/configured as an agent).
+- `cloudstack_pod`: Required if `cloudstack_zone` is set. Name of the pod to
+  register this host under.
+- `cloudstack_cluster`: Required if `cloudstack_zone` is set. Name of the
+  cluster to register this host under.
 
 ### Variables used by Management nodes
 
@@ -177,8 +179,6 @@ database is always `cloud_usage`.  There is no ability to change these.
 
 ### Variables for Configuring Cloudstack
 
-***Not implemented yet***
-
 - `cloudstack_zones`: List of Zones to create in Cloudstack.  Most deployments
   will create a single zone per Datacenter.
   - `name`: Required. Name of the zone.  Recommended to keep it short but
@@ -202,6 +202,15 @@ database is always `cloud_usage`.  There is no ability to change these.
       this network.
     - `vni`: Optional. If untagged, leave blank.  Otherwise is the VLAN or
       VXLAN vni.
+    - `start_ip`: Optional, only used when `usage: public`. Starting IP address
+      of the public VLAN IP range handed out to Virtual Routers/instances. If
+      omitted (along with `end_ip`), no public IP range or Virtual Router
+      network service is provisioned for this network — add it later via the
+      UI once the rest of the zone is up.
+    - `end_ip`: Optional, only used when `usage: public`. Ending IP address of
+      the public VLAN IP range. See `start_ip`.
+    - `gateway`: Required if `start_ip`/`end_ip` are set. Gateway address for
+      the public VLAN IP range, e.g. `192.168.1.1`.
   - `pods`: Required. List of PODs.  PODs are an organizational unit that are
     not directly visible to end users.  Often a pod represents a rack or row
     and typically all hosts in the POD will share the same subnet.  It is
@@ -218,6 +227,17 @@ database is always `cloud_usage`.  There is no ability to change these.
     - `clusters`: Required. List of clusters.  A cluster is a grouping of hosts
       within a POD. The hosts must be identical (CPU, Memory).
       - `name`: Required. Cluster name.
+  - `primary_storage`: Optional. NFS-backed primary storage pool, created with
+    `scope=cluster` for each cluster in the zone. If omitted, hosts/clusters
+    are still created but have no usable primary storage until one is added
+    manually.
+    - `name`: Required. Name of the storage pool.
+    - `nfs_path`: Required. NFS export path, e.g. `10.1.1.5:/export/primary`.
+  - `secondary_storage`: Optional. NFS-backed secondary storage (image store)
+    for the zone, added once the first KVM host in the zone registers. If
+    omitted, no secondary storage is provisioned automatically.
+    - `name`: Required. Name of the image store.
+    - `nfs_path`: Required. NFS export path, e.g. `10.1.1.5:/export/secondary`.
 
 ## SAML / External IDP Authentication
 
