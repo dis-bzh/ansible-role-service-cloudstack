@@ -1,0 +1,6 @@
+---
+- name: "Provision zone: {{ zone.name }}"
+  ansible.builtin.include_tasks: "cloudstack-zone-single.yml"
+  loop: "{{ cloudstack_zones }}"
+  loop_control:
+    loop_var: zone

@@ -1,0 +1,94 @@
+---
+- name: "Zone {{ zone.name }}: ensure physical network {{ network.name }}"
+  ansible.builtin.include_tasks: "cloudstack-cmk-ensure.yml"
+  vars:
+    cmk_ensure_label: "physical network {{ network.name }}"
+    cmk_ensure_get_cmd: "cmk list physicalnetworks zoneid={{ cloudstack_zone_id }} name={{ network.name }}"
+    cmk_ensure_get_filter: '.physicalnetwork[] | select(.name=="{{ network.name }}").id'
+    cmk_ensure_create_cmd: >-
+      cmk create physicalnetwork
+      name={{ network.name }}
+      zoneid={{ cloudstack_zone_id }}
+      isolationmethods={{ network.isolation }}
+    cmk_ensure_create_filter: ".physicalnetwork.id"
+
+- name: "Zone {{ zone.name }}: record physical network {{ network.name }} id"
+  ansible.builtin.set_fact:
+    cloudstack_physnet_id: "{{ cmk_ensure_id }}"
+
+- name: "Physical network {{ network.name }}: check traffic type {{ network.usage }}"
+  ansible.builtin.shell: >-
+    cmk list traffictypes physicalnetworkid={{ cloudstack_physnet_id }} |
+    jq -r '.traffictype[] | select(.traffictype=="{{ network.usage | capitalize }}").id // empty'
+  changed_when: false
+  register: cloudstack_traffictype_check
+
+- name: "Physical network {{ network.name }}: add traffic type {{ network.usage }}"
+  ansible.builtin.command: >-
+    cmk add traffictype
+    traffictype={{ network.usage | capitalize }}
+    physicalnetworkid={{ cloudstack_physnet_id }}
+    kvmnetworklabel={{ network.bridge }}
+  when: cloudstack_traffictype_check.stdout | length == 0
+
+- name: "Physical network {{ network.name }}: set VNI"
+  ansible.builtin.command: >-
+    cmk update physicalnetwork
+    id={{ cloudstack_physnet_id }}
+    vlan={{ 'vxlan://' ~ network.vni if network.isolation == 'VXLAN' else network.vni }}
+  when: network.vni is defined
+
+- name: "Physical network {{ network.name }}: check state"
+  ansible.builtin.shell: "cmk list physicalnetworks id={{ cloudstack_physnet_id }} | jq -r '.physicalnetwork[0].state'"
+  changed_when: false
+  register: cloudstack_physnet_state
+
+- name: "Physical network {{ network.name }}: enable"
+  ansible.builtin.command: "cmk update physicalnetwork id={{ cloudstack_physnet_id }} state=Enabled"
+  when: cloudstack_physnet_state.stdout != "Enabled"
+
+- name: "Zone {{ zone.name }}: provision public IP range for {{ network.name }}"
+  when: network.usage == 'public' and network.start_ip is defined and network.end_ip is defined
+  block:
+    - name: "Public network {{ network.name }}: ensure VLAN IP range"
+      ansible.builtin.include_tasks: "cloudstack-cmk-ensure.yml"
+      vars:
+        cmk_ensure_label: "public IP range {{ network.name }}"
+        cmk_ensure_get_cmd: "cmk list vlanipranges zoneid={{ cloudstack_zone_id }} forvirtualnetwork=true"
+        cmk_ensure_get_filter: '.vlaniprange[0].id'
+        cmk_ensure_create_cmd: >-
+          cmk create vlaniprange
+          zoneid={{ cloudstack_zone_id }}
+          vlan=untagged
+          gateway={{ network.gateway }}
+          netmask={{ network.subnet | ansible.utils.ipaddr('netmask') }}
+          startip={{ network.start_ip }}
+          endip={{ network.end_ip }}
+          forvirtualnetwork=true
+        cmk_ensure_create_filter: ".vlan.id"
+
+    - name: "Public network {{ network.name }}: get VirtualRouter network service provider"
+      ansible.builtin.shell: >-
+        cmk list networkserviceproviders name=VirtualRouter physicalnetworkid={{ cloudstack_physnet_id }} |
+        jq -r '.networkserviceprovider[0].id'
+      changed_when: false
+      register: cloudstack_vr_nsp
+
+    - name: "Public network {{ network.name }}: get VirtualRouter element"
+      ansible.builtin.shell: "cmk list virtualrouterelements nspid={{ cloudstack_vr_nsp.stdout }} | jq -r '.virtualrouterelement[0].id'"
+      changed_when: false
+      register: cloudstack_vre
+
+    - name: "Public network {{ network.name }}: check VirtualRouter provider state"
+      ansible.builtin.shell: >-
+        cmk list networkserviceproviders id={{ cloudstack_vr_nsp.stdout }} | jq -r '.networkserviceprovider[0].state'
+      changed_when: false
+      register: cloudstack_vr_nsp_state
+
+    - name: "Public network {{ network.name }}: enable VirtualRouter element + provider"
+      when: cloudstack_vr_nsp_state.stdout != "Enabled"
+      block:
+        - name: "Public network {{ network.name }}: enable VirtualRouter element"
+          ansible.builtin.command: "cmk configure virtualrouterelement enabled=true id={{ cloudstack_vre.stdout }}"
+        - name: "Public network {{ network.name }}: enable VirtualRouter provider"
+          ansible.builtin.command: "cmk update networkserviceprovider id={{ cloudstack_vr_nsp.stdout }} state=Enabled"

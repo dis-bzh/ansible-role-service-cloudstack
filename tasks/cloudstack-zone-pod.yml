@@ -1,0 +1,26 @@
+---
+- name: "Zone {{ zone.name }}: ensure pod {{ pod.name }}"
+  ansible.builtin.include_tasks: "cloudstack-cmk-ensure.yml"
+  vars:
+    cmk_ensure_label: "pod {{ pod.name }}"
+    cmk_ensure_get_cmd: "cmk list pods zoneid={{ cloudstack_zone_id }} name={{ pod.name }}"
+    cmk_ensure_get_filter: '.pod[] | select(.name=="{{ pod.name }}").id'
+    cmk_ensure_create_cmd: >-
+      cmk create pod
+      name={{ pod.name }}
+      zoneid={{ cloudstack_zone_id }}
+      gateway={{ pod.gateway | ansible.utils.ipaddr('address') }}
+      netmask={{ pod.gateway | ansible.utils.ipaddr('netmask') }}
+      startip={{ pod.start_ip }}
+      endip={{ pod.end_ip }}
+    cmk_ensure_create_filter: ".pod.id"
+
+- name: "Zone {{ zone.name }}: record pod {{ pod.name }} id"
+  ansible.builtin.set_fact:
+    cloudstack_pod_id: "{{ cmk_ensure_id }}"
+
+- name: "Pod {{ pod.name }}: provision clusters"
+  ansible.builtin.include_tasks: "cloudstack-zone-cluster.yml"
+  loop: "{{ pod.clusters }}"
+  loop_control:
+    loop_var: cluster

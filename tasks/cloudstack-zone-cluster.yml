@@ -1,0 +1,37 @@
+---
+- name: "Pod {{ pod.name }}: ensure cluster {{ cluster.name }}"
+  ansible.builtin.include_tasks: "cloudstack-cmk-ensure.yml"
+  vars:
+    cmk_ensure_label: "cluster {{ cluster.name }}"
+    cmk_ensure_get_cmd: "cmk list clusters podid={{ cloudstack_pod_id }} name={{ cluster.name }}"
+    cmk_ensure_get_filter: '.cluster[] | select(.name=="{{ cluster.name }}").id'
+    cmk_ensure_create_cmd: >-
+      cmk add cluster
+      zoneid={{ cloudstack_zone_id }}
+      podid={{ cloudstack_pod_id }}
+      clustername={{ cluster.name }}
+      clustertype=CloudManaged
+      hypervisor=KVM
+    cmk_ensure_create_filter: ".cluster[0].id"
+
+- name: "Pod {{ pod.name }}: record cluster {{ cluster.name }} id"
+  ansible.builtin.set_fact:
+    cloudstack_cluster_id: "{{ cmk_ensure_id }}"
+
+- name: "Cluster {{ cluster.name }}: ensure primary storage"
+  when: zone.primary_storage is defined
+  ansible.builtin.include_tasks: "cloudstack-cmk-ensure.yml"
+  vars:
+    cmk_ensure_label: "primary storage {{ zone.primary_storage.name }}"
+    cmk_ensure_get_cmd: "cmk list storagepools clusterid={{ cloudstack_cluster_id }} name={{ zone.primary_storage.name }}"
+    cmk_ensure_get_filter: '.storagepool[] | select(.name=="{{ zone.primary_storage.name }}").id'
+    cmk_ensure_create_cmd: >-
+      cmk create storagepool
+      name={{ zone.primary_storage.name }}
+      zoneid={{ cloudstack_zone_id }}
+      podid={{ cloudstack_pod_id }}
+      clusterid={{ cloudstack_cluster_id }}
+      url=nfs://{{ zone.primary_storage.nfs_path }}
+      hypervisor=KVM
+      scope=cluster
+    cmk_ensure_create_filter: ".storagepool.id"

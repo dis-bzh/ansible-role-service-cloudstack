@@ -1,0 +1,46 @@
+---
+# NOTE: cmk's `list zones` name filter does partial matches, filter with jq for an exact match.
+- name: "Zone {{ zone.name }}: ensure exists"
+  ansible.builtin.include_tasks: "cloudstack-cmk-ensure.yml"
+  vars:
+    cmk_ensure_label: "zone {{ zone.name }}"
+    cmk_ensure_get_cmd: "cmk list zones name={{ zone.name }}"
+    cmk_ensure_get_filter: '.zone[] | select(.name=="{{ zone.name }}").id'
+    cmk_ensure_create_cmd: >-
+      cmk create zone
+      name={{ zone.name }}
+      networktype=Advanced
+      dns1={{ zone.public_dns[0] }}
+      {{ ('dns2=' ~ zone.public_dns[1]) if zone.public_dns | length > 1 else '' }}
+      internaldns1={{ zone.internal_dns[0] }}
+      {{ ('internaldns2=' ~ zone.internal_dns[1]) if zone.internal_dns | length > 1 else '' }}
+      {{ ('domain=' ~ zone.domain) if zone.domain is defined else '' }}
+      {{ ('guestcidraddress=' ~ zone.subnet) if zone.subnet is defined else '' }}
+      localstorageenabled=false
+      securitygroupenabled=false
+    cmk_ensure_create_filter: ".zone.id"
+
+- name: "Zone {{ zone.name }}: record id"
+  ansible.builtin.set_fact:
+    cloudstack_zone_id: "{{ cmk_ensure_id }}"
+
+- name: "Zone {{ zone.name }}: provision physical networks"
+  ansible.builtin.include_tasks: "cloudstack-zone-network.yml"
+  loop: "{{ zone.networks }}"
+  loop_control:
+    loop_var: network
+
+- name: "Zone {{ zone.name }}: provision pods"
+  ansible.builtin.include_tasks: "cloudstack-zone-pod.yml"
+  loop: "{{ zone.pods }}"
+  loop_control:
+    loop_var: pod
+
+- name: "Zone {{ zone.name }}: check allocation state"
+  ansible.builtin.shell: "cmk list zones id={{ cloudstack_zone_id }} | jq -r '.zone[0].allocationstate'"
+  changed_when: false
+  register: cloudstack_zone_state
+
+- name: "Zone {{ zone.name }}: enable"
+  ansible.builtin.command: "cmk update zone id={{ cloudstack_zone_id }} allocationstate=Enabled"
+  when: cloudstack_zone_state.stdout != "Enabled"

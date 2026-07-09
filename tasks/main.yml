@@ -47,6 +47,15 @@
   ansible.builtin.include_tasks: "cloudstack-api.yml"
   when: inventory_hostname in groups["cloudstack_mgmt"]
 
+- name: Provision Zones/Pods/Clusters
+  ansible.builtin.include_tasks: "cloudstack-zone.yml"
+  when: inventory_hostname in groups["cloudstack_mgmt"] and cloudstack_zones is defined
+  run_once: true
+
+- name: Register KVM host with CloudStack zone/pod/cluster
+  ansible.builtin.include_tasks: "cloudstack-zone-host.yml"
+  when: inventory_hostname in groups["cloudstack_kvm"] and cloudstack_zone is defined
+
 - name: Sync users/projects from LDAP
   ansible.builtin.include_tasks: "cloudstack-ldapsync.yml"
   when: inventory_hostname in groups["cloudstack_mgmt"] and cloudstack_saml_enable

@@ -1,0 +1,72 @@
+---
+- name: "Host {{ inventory_hostname }}: determine mgmt IP"
+  ansible.builtin.set_fact:
+    cloudstack_host_mgmt_ip: "{{ ansible_facts[cloudstack_mgmt_interface]['ipv4']['address'] }}"
+
+- name: "Host {{ inventory_hostname }}: resolve zone id"
+  ansible.builtin.shell: "cmk list zones name={{ cloudstack_zone }} | jq -r '.zone[] | select(.name==\"{{ cloudstack_zone }}\").id'"
+  changed_when: false
+  register: cloudstack_host_zone
+  delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+
+- name: "Host {{ inventory_hostname }}: resolve pod id"
+  ansible.builtin.shell: >-
+    cmk list pods zoneid={{ cloudstack_host_zone.stdout }} name={{ cloudstack_pod }} |
+    jq -r '.pod[] | select(.name=="{{ cloudstack_pod }}").id'
+  changed_when: false
+  register: cloudstack_host_pod
+  delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+
+- name: "Host {{ inventory_hostname }}: resolve cluster id"
+  ansible.builtin.shell: >-
+    cmk list clusters podid={{ cloudstack_host_pod.stdout }} name={{ cloudstack_cluster }} |
+    jq -r '.cluster[] | select(.name=="{{ cloudstack_cluster }}").id'
+  changed_when: false
+  register: cloudstack_host_cluster
+  delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+
+- name: "Host {{ inventory_hostname }}: check if already registered"
+  ansible.builtin.shell: >-
+    cmk list hosts type=Routing zoneid={{ cloudstack_host_zone.stdout }} |
+    jq -r '.host[]? | select(.ipaddress=="{{ cloudstack_host_mgmt_ip }}").id // empty'
+  changed_when: false
+  register: cloudstack_host_check
+  delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+
+- name: "Host {{ inventory_hostname }}: register with CloudStack"
+  ansible.builtin.command: >-
+    cmk add host
+    zoneid={{ cloudstack_host_zone.stdout }}
+    podid={{ cloudstack_host_pod.stdout }}
+    clusterid={{ cloudstack_host_cluster.stdout }}
+    hypervisor=KVM
+    username=cloudstack
+    url=http://{{ cloudstack_host_mgmt_ip }}
+  delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+  when: cloudstack_host_check.stdout | length == 0
+
+- name: "Zone {{ cloudstack_zone }}: ensure secondary storage"
+  when: cloudstack_zones is defined
+  vars:
+    cloudstack_host_zone_def: "{{ cloudstack_zones | selectattr('name', 'equalto', cloudstack_zone) | first }}"
+  block:
+    - name: "Zone {{ cloudstack_zone }}: check secondary storage"
+      ansible.builtin.shell: >-
+        cmk list imagestores zoneid={{ cloudstack_host_zone.stdout }} |
+        jq -r '.imagestore[]? | select(.name=="{{ cloudstack_host_zone_def.secondary_storage.name }}").id // empty'
+      changed_when: false
+      register: cloudstack_secstorage_check
+      delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+      when: cloudstack_host_zone_def.secondary_storage is defined
+
+    - name: "Zone {{ cloudstack_zone }}: add secondary storage"
+      ansible.builtin.command: >-
+        cmk add imagestore
+        name={{ cloudstack_host_zone_def.secondary_storage.name }}
+        zoneid={{ cloudstack_host_zone.stdout }}
+        provider=NFS
+        url=nfs://{{ cloudstack_host_zone_def.secondary_storage.nfs_path }}
+      delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+      when: >-
+        cloudstack_host_zone_def.secondary_storage is defined and
+        cloudstack_secstorage_check.stdout | length == 0

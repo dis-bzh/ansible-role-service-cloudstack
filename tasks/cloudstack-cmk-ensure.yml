@@ -1,0 +1,18 @@
+---
+# Generic "list-by-name, create if absent" helper. Caller sets cmk_ensure_label,
+# cmk_ensure_get_cmd/_get_filter, cmk_ensure_create_cmd/_create_filter via vars,
+# then reads cmk_ensure_id right after include_tasks. Mirrors the get/set shape
+# already used by cloudstack-set-config.yml.
+- name: "CMK: check for existing {{ cmk_ensure_label }}"
+  ansible.builtin.shell: "{{ cmk_ensure_get_cmd }} | jq -r '{{ cmk_ensure_get_filter }} // empty'"
+  changed_when: false
+  register: cmk_ensure_check
+
+- name: "CMK: create {{ cmk_ensure_label }}"
+  ansible.builtin.shell: "{{ cmk_ensure_create_cmd }} | jq -r '{{ cmk_ensure_create_filter }}'"
+  register: cmk_ensure_created
+  when: cmk_ensure_check.stdout | length == 0
+
+- name: "CMK: record {{ cmk_ensure_label }} id"
+  ansible.builtin.set_fact:
+    cmk_ensure_id: "{{ cmk_ensure_check.stdout if cmk_ensure_check.stdout | length > 0 else cmk_ensure_created.stdout }}"
