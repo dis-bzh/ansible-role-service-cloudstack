@@ -45,6 +45,37 @@
   delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
   when: cloudstack_host_check.stdout | length == 0
 
+- name: "Cluster {{ cloudstack_cluster }}: ensure primary storage"
+  when: cloudstack_zones is defined
+  vars:
+    cloudstack_host_zone_def: "{{ cloudstack_zones | selectattr('name', 'equalto', cloudstack_zone) | first }}"
+  block:
+    # Must run after host registration above - CloudStack refuses
+    # `create storagepool` until a host exists in the cluster.
+    - name: "Cluster {{ cloudstack_cluster }}: check primary storage"
+      ansible.builtin.shell: >-
+        cmk list storagepools clusterid={{ cloudstack_host_cluster.stdout }} |
+        jq -r '.storagepool[]? | select(.name=="{{ cloudstack_host_zone_def.primary_storage.name }}").id // empty'
+      changed_when: false
+      register: cloudstack_primstorage_check
+      delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+      when: cloudstack_host_zone_def.primary_storage is defined
+
+    - name: "Cluster {{ cloudstack_cluster }}: add primary storage"
+      ansible.builtin.command: >-
+        cmk create storagepool
+        name={{ cloudstack_host_zone_def.primary_storage.name }}
+        zoneid={{ cloudstack_host_zone.stdout }}
+        podid={{ cloudstack_host_pod.stdout }}
+        clusterid={{ cloudstack_host_cluster.stdout }}
+        url=nfs://{{ cloudstack_host_zone_def.primary_storage.nfs_path }}
+        hypervisor=KVM
+        scope=cluster
+      delegate_to: "{{ groups['cloudstack_mgmt'] | first }}"
+      when: >-
+        cloudstack_host_zone_def.primary_storage is defined and
+        cloudstack_primstorage_check.stdout | length == 0
+
 - name: "Zone {{ cloudstack_zone }}: ensure secondary storage"
   when: cloudstack_zones is defined
   vars:
