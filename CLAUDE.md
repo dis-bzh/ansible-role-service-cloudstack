@@ -42,3 +42,12 @@ Two schema extensions beyond the literal README bullet list, both required for t
 ## Working here
 
 No standalone entrypoint — this role runs via `ansible-playbooks-cloudstack/bootstrap.yml`. To iterate, use `ansible-lint` and `--check`/`--diff` against a staging inventory. Preserve upstream file structure and MIT/Apache license headers to keep re-syncs clean.
+
+### Testing
+
+Two CI tiers (`.gitlab-ci.yml`: `lint` → `test`), formalizing what used to be an ad-hoc `/tmp` harness:
+
+1. **Lint + syntax-check** (no Docker): `ansible-lint --profile min .` (the default `production` profile has ~120 pre-existing violations unrelated to any current work — `min` is the deliberate gate) + `ansible-playbook --syntax-check -i tests/inventory/syntax-check.yml tests/site-syntax-check.yml` (whole role, via `main.yml`).
+2. **Simulator functional test** (`./tests/run-simulator-test.sh`, needs Docker): boots `apache/cloudstack-simulator:4.22.0.0`, runs the zone/pod/cluster/host provisioning tasks against it (`tests/site.yml`, bypassing `main.yml`'s APT/keyring setup via `include_role`+`tasks_from`), then asserts state via `cmk` (`cmk` Go CLI v6.5.0 — not the abandoned PyPI `cloudmonkey` package, which fails to build under Python 3.12). This is the same sequence that caught a real ordering bug (primary storage created before any host existed in the cluster — fixed in `tasks/cloudstack-zone-host.yml`). Simulator cold boot (mysqld + Maven-built mgmt server + npm UI) can take ~10-20min — the script's API-wait loop budgets 20min.
+
+See `tests/README.md` for the full breakdown, including what's out of scope (`cloudstack-mgmt.yml`/`cloudstack-agent.yml`/`cloudstack-api.yml`/`cloudstack-ldapsync.yml` need a real multi-node MariaDB/Galera+TLS+LDAP fleet to functionally test — lint/syntax-check is the coverage there).

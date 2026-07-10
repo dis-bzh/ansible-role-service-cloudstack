@@ -259,6 +259,18 @@ fin. L'authentification LDAP n'est pas utilisée car l'IDP peut exiger une 2FA, 
 ne fournit pas assez de flexibilité pour l'assignation des utilisateurs aux projets.
 
 
+## Tests
+
+Voir [`tests/README.md`](tests/README.md) pour les détails complets. Deux niveaux
+de CI :
+
+1. **Lint + syntax-check** (rapide, pas de Docker) : `ansible-lint --profile min .`
+   plus un `--syntax-check` de tout le rôle.
+2. **Test fonctionnel simulateur** (nécessite Docker) : `./tests/run-simulator-test.sh`
+   démarre la vraie image `apache/cloudstack-simulator` et provisionne une
+   zone/pod/cluster/hôte au travers, puis vérifie l'état CloudStack résultant
+   via `cmk`.
+
 ## Dépannage / Recherche
 
 Le stockage secondaire nécessite HTTPS, vous pouvez donc obtenir une erreur réseau à moins que TLS ne soit configuré correctement conformément à https://www.shapeblue.com/securing-cloudstack-4-11-with-https-tls/
