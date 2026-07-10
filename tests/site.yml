@@ -1,0 +1,22 @@
+---
+# Functional test: runs only the zone/pod/cluster/host provisioning tasks
+# directly (bypassing tasks/main.yml's APT/keyring setup, which needs real
+# root/APT access not available in the test container) against a live
+# CloudStack Simulator instance. See tests/README.md.
+- name: Provision zone/pod/cluster on simulator
+  hosts: cloudstack_mgmt
+  gather_facts: false
+  tasks:
+    - name: Run zone provisioning tasks
+      ansible.builtin.include_role:
+        name: "{{ cloudstack_role_path | default(playbook_dir ~ '/..') }}"
+        tasks_from: cloudstack-zone.yml
+
+- name: Register simulated KVM host
+  hosts: cloudstack_kvm
+  gather_facts: true
+  tasks:
+    - name: Run host registration tasks
+      ansible.builtin.include_role:
+        name: "{{ cloudstack_role_path | default(playbook_dir ~ '/..') }}"
+        tasks_from: cloudstack-zone-host.yml

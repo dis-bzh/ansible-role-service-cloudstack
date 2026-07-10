@@ -1,0 +1,53 @@
+---
+all:
+  children:
+    cloudstack_mgmt:
+      hosts:
+        localhost:
+    cloudstack_kvm:
+      hosts:
+        simhost1:
+          ansible_connection: local
+          cloudstack_mgmt_interface: eth0
+          cloudstack_zone: sim-zone-1
+          cloudstack_pod: sim-pod-1
+          cloudstack_cluster: sim-cluster-1
+  vars:
+    ansible_connection: local
+    cloudstack_zones:
+      - name: sim-zone-1
+        public_dns: ["8.8.8.8"]
+        internal_dns: ["8.8.8.8"]
+        subnet: "10.1.1.0/24"
+        networks:
+          - name: mgmt-net
+            usage: management
+            isolation: VLAN
+            subnet: "192.168.100.0/24"
+            bridge: cloudbr0
+          - name: guest-net
+            usage: guest
+            isolation: VLAN
+            subnet: "192.168.150.0/24"
+            bridge: cloudbr2
+          - name: public-net
+            usage: public
+            isolation: VLAN
+            subnet: "192.168.200.0/24"
+            bridge: cloudbr1
+            start_ip: "192.168.200.10"
+            end_ip: "192.168.200.20"
+            gateway: "192.168.200.1"
+        pods:
+          - name: sim-pod-1
+            gateway: "192.168.100.1/24"
+            start_ip: "192.168.100.10"
+            end_ip: "192.168.100.20"
+            clusters:
+              - name: sim-cluster-1
+        primary_storage:
+          name: sim-primary-1
+          nfs_path: "10.1.1.5:/export/primary"
+        secondary_storage:
+          name: sim-secondary-1
+          nfs_path: "10.1.1.5:/export/secondary"

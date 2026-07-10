@@ -1,0 +1,12 @@
+---
+# Runs the whole role (main.yml) for --syntax-check only - never executed.
+# Catches YAML/Jinja errors and module-arg typos across every task file,
+# including the ones the simulator functional test doesn't touch
+# (mgmt/agent/api/ldapsync/systemvm - not simulator-representable, see
+# tests/README.md).
+- hosts: all
+  gather_facts: false
+  tasks:
+    - name: Run the whole role
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."

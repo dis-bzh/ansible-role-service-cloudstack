@@ -1,0 +1,11 @@
+---
+# Minimal inventory for --syntax-check only. No vars: this playbook is never
+# executed, just parsed, so cloudstack_* required vars don't need real values.
+all:
+  children:
+    cloudstack_mgmt:
+      hosts:
+        mgmt1:
+    cloudstack_kvm:
+      hosts:
+        kvm1:
